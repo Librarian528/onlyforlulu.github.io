@@ -1,463 +1,322 @@
-<!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+﻿<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>LllLb</title>
 
+<style>
+html,body{
+	margin:0px;
+	width:100%;
+	height:100%;
+	overflow:hidden;
+	background:#000;
+}
+</style>
 
+</head>
+<body>
+<canvas id="canvas" style="position:absolute;width:100%;height:100%;z-index:8888"></canvas>
+<canvas style="position:absolute;width:100%;height:100%;z-index:9999" class="canvas" ></canvas>
+<div class="overlay">
+  <div class="tabs">
+    <div class="tabs-labels"><span class="tabs-label">Commands</span><span class="tabs-label">Info</span><span class="tabs-label">Share</span></div>
 
-        <!--=============== REMIXICONS ===============-->
-        <link href="https://cdn.jsdelivr.net/npm/remixicon@2.5.0/fonts/remixicon.css" rel="stylesheet">
-        
-        <!--=============== SWIPER CSS ===============-->
-        <link rel="stylesheet" href="assets/css/swiper-bundle.min.css">
+    <div class="tabs-panels">
+      <ul class="tabs-panel commands">
+      </ul>
+    </div>
+  </div>
+</div>
+<script>
+function initVars(){
 
-        <!--=============== CSS ===============-->
-        <link rel="stylesheet" href="assets/css/styles.css">
+	pi=Math.PI;
+	ctx=canvas.getContext("2d");
+	canvas.width=canvas.clientWidth;
+	canvas.height=canvas.clientHeight;
+	cx=canvas.width/2;
+	cy=canvas.height/2;
+	playerZ=-25;
+	playerX=playerY=playerVX=playerVY=playerVZ=pitch=yaw=pitchV=yawV=0;
+	scale=600;
+	seedTimer=0;seedInterval=5,seedLife=100;gravity=.02;
+	seeds=new Array();
+	sparkPics=new Array();
+	s="https://cantelope.org/NYE/";
+	for(i=1;i<=10;++i){
+		sparkPic=new Image();
+		sparkPic.src=s+"spark"+i+".png";
+		sparkPics.push(sparkPic);
+	}
+	sparks=new Array();
+	pow1=new Audio(s+"pow1.ogg");
+	pow2=new Audio(s+"pow2.ogg");
+	pow3=new Audio(s+"pow3.ogg");
+	pow4=new Audio(s+"pow4.ogg");
+	frames = 0;
+}
 
-        <title>田园徽州</title>
-    </head>
-    <body>
-        <header class="header" id="header">
-            <nav class="nav container">
-                <a href="#" class="nav__logo"><p>田园徽州</p>寻找那片属于你的田园</</a>
+function rasterizePoint(x,y,z){
 
-                <div class="nav__menu" id="nav-menu">
-                    <ul class="nav__list">
-                        <li class="nav__item">
-                            <a href="#home" class="nav__link active-link">首页&nbsp;</a>
-                        </li>
-                        <li class="nav__item">
-                            <a href="#about" class="nav__link">商城&nbsp;</a>
-                        </li>
-                        <li class="nav__item">
-                            <a href="#discover" class="nav__link">社区&nbsp;</a>
-                        </li>
-                        <li class="nav__item">
-                            <a href="#place" class="nav__link">关于我们&nbsp;</a>
-                        </li>
-                    </ul>
+	var p,d;
+	x-=playerX;
+	y-=playerY;
+	z-=playerZ;
+	p=Math.atan2(x,z);
+	d=Math.sqrt(x*x+z*z);
+	x=Math.sin(p-yaw)*d;
+	z=Math.cos(p-yaw)*d;
+	p=Math.atan2(y,z);
+	d=Math.sqrt(y*y+z*z);
+	y=Math.sin(p-pitch)*d;
+	z=Math.cos(p-pitch)*d;
+	var rx1=-1000,ry1=1,rx2=1000,ry2=1,rx3=0,ry3=0,rx4=x,ry4=z,uc=(ry4-ry3)*(rx2-rx1)-(rx4-rx3)*(ry2-ry1);
+	if(!uc) return {x:0,y:0,d:-1};
+	var ua=((rx4-rx3)*(ry1-ry3)-(ry4-ry3)*(rx1-rx3))/uc;
+	var ub=((rx2-rx1)*(ry1-ry3)-(ry2-ry1)*(rx1-rx3))/uc;
+	if(!z)z=.000000001;
+	if(ua>0&&ua<1&&ub>0&&ub<1){
+		return {
+			x:cx+(rx1+ua*(rx2-rx1))*scale,
+			y:cy+y/z*scale,
+			d:Math.sqrt(x*x+y*y+z*z)
+		};
+	}else{
+		return {
+			x:cx+(rx1+ua*(rx2-rx1))*scale,
+			y:cy+y/z*scale,
+			d:-1
+		};
+	}
+}
 
-                    <div class="nav__dark">
-                        <!-- Theme change button -->
-                        <span class="change-theme-name">Dark mode</span>
-                        <i class="ri-moon-line change-theme" id="theme-button"></i>
-                    </div>
+function spawnSeed(){
 
-                    <i class="ri-close-line nav__close" id="nav-close"></i>
-                </div>
+	seed=new Object();
+	seed.x=-50+Math.random()*100;
+	seed.y=25;
+	seed.z=-50+Math.random()*100;
+	seed.vx=.1-Math.random()*.2;
+	seed.vy=-1.5;//*(1+Math.random()/2);
+	seed.vz=.1-Math.random()*.2;
+	seed.born=frames;
+	seeds.push(seed);
+}
 
-                <div class="nav__toggle" id="nav-toggle">
-                    <i class="ri-function-line"></i>
-                </div>
-            </nav>
-        </header>
+function splode(x,y,z){
 
-        <main class="main">
-            <!--==================== HOME ====================-->
-            <section class="home" id="home">
-                <img src="assets/img/maitian.jpg" alt="" class="home__img">
+	t=5+parseInt(Math.random()*150);
+	sparkV=1+Math.random()*2.5;
+	type=parseInt(Math.random()*3);
+	switch(type){
+		case 0:
+			pic1=parseInt(Math.random()*10);
+			break;
+		case 1:
+			pic1=parseInt(Math.random()*10);
+			do{ pic2=parseInt(Math.random()*10); }while(pic2==pic1);
+			break;
+		case 2:
+			pic1=parseInt(Math.random()*10);
+			do{ pic2=parseInt(Math.random()*10); }while(pic2==pic1);
+			do{ pic3=parseInt(Math.random()*10); }while(pic3==pic1 || pic3==pic2);
+			break;
+	}
+	for(m=1;m<t;++m){
+		spark=new Object();
+		spark.x=x; spark.y=y; spark.z=z;
+		p1=pi*2*Math.random();
+		p2=pi*Math.random();
+		v=sparkV*(1+Math.random()/6)
+		spark.vx=Math.sin(p1)*Math.sin(p2)*v;
+		spark.vz=Math.cos(p1)*Math.sin(p2)*v;
+		spark.vy=Math.cos(p2)*v;
+		switch(type){
+			case 0: spark.img=sparkPics[pic1]; break;
+			case 1:
+				spark.img=sparkPics[parseInt(Math.random()*2)?pic1:pic2];
+				break;
+			case 2:
+				switch(parseInt(Math.random()*3)){
+					case 0: spark.img=sparkPics[pic1]; break;
+					case 1: spark.img=sparkPics[pic2]; break;
+					case 2: spark.img=sparkPics[pic3]; break;
+				}
+				break;
+		}
+		spark.radius=25+Math.random()*50;
+		spark.alpha=1;
+		spark.trail=new Array();
+		sparks.push(spark);
+	}
+	switch(parseInt(Math.random()*4)){
+		case 0:	pow=new Audio(s+"pow1.ogg"); break;
+		case 1:	pow=new Audio(s+"pow2.ogg"); break;
+		case 2:	pow=new Audio(s+"pow3.ogg"); break;
+		case 3:	pow=new Audio(s+"pow4.ogg"); break;
+	}
+	d=Math.sqrt((x-playerX)*(x-playerX)+(y-playerY)*(y-playerY)+(z-playerZ)*(z-playerZ));
+	pow.volume=1.5/(1+d/10);
+	pow.play();
+}
 
-                <div class="home__container container grid">
-                    <div class="home__data">
-                        <h1 class="home__data-title">我们 <br> 
-                          <span>与<strong>乡村</strong></span>的<strong>距离&nbsp;</strong><br>
-可以更<strong>近</strong></h1>
-                        <a href="#" class="button">立刻探索&nbsp;</a>
+function doLogic(){
 
-                    </div>
+	if(seedTimer<frames){
+		seedTimer=frames+seedInterval*Math.random()*10;
+		spawnSeed();
+	}
+	for(i=0;i<seeds.length;++i){
+		seeds[i].vy+=gravity;
+		seeds[i].x+=seeds[i].vx;
+		seeds[i].y+=seeds[i].vy;
+		seeds[i].z+=seeds[i].vz;
+		if(frames-seeds[i].born>seedLife){
+			splode(seeds[i].x,seeds[i].y,seeds[i].z);
+			seeds.splice(i,1);
+		}
+	}
+	for(i=0;i<sparks.length;++i){
+		if(sparks[i].alpha>0 && sparks[i].radius>5){
+			sparks[i].alpha-=.01;
+			sparks[i].radius/=1.02;
+			sparks[i].vy+=gravity;
+			point=new Object();
+			point.x=sparks[i].x;
+			point.y=sparks[i].y;
+			point.z=sparks[i].z;
+			if(sparks[i].trail.length){
+				x=sparks[i].trail[sparks[i].trail.length-1].x;
+				y=sparks[i].trail[sparks[i].trail.length-1].y;
+				z=sparks[i].trail[sparks[i].trail.length-1].z;
+				d=((point.x-x)*(point.x-x)+(point.y-y)*(point.y-y)+(point.z-z)*(point.z-z));
+				if(d>9){
+					sparks[i].trail.push(point);
+				}
+			}else{
+				sparks[i].trail.push(point);
+			}
+			if(sparks[i].trail.length>5)sparks[i].trail.splice(0,1);
+			sparks[i].x+=sparks[i].vx;
+			sparks[i].y+=sparks[i].vy;
+			sparks[i].z+=sparks[i].vz;
+			sparks[i].vx/=1.075;
+			sparks[i].vy/=1.075;
+			sparks[i].vz/=1.075;
+		}else{
+			sparks.splice(i,1);
+		}
+	}
+	p=Math.atan2(playerX,playerZ);
+	d=Math.sqrt(playerX*playerX+playerZ*playerZ);
+	d+=Math.sin(frames/80)/1.25;
+	t=Math.sin(frames/200)/40;
+	playerX=Math.sin(p+t)*d;
+	playerZ=Math.cos(p+t)*d;
+	yaw=pi+p+t;
+}
 
-                    <div class="home__social">
-                        <a href="https://www.facebook.com/" target="_blank" class="home__social-link">
-                            <i class="ri-facebook-box-fill"></i>
-                        </a>
-                        <a href="https://www.instagram.com/" target="_blank" class="home__social-link">
-                            <i class="ri-instagram-fill"></i>
-                        </a>
-                        <a href="https://twitter.com/" target="_blank" class="home__social-link">
-                            <i class="ri-twitter-fill"></i>
-                        </a>
-                    </div>
+function rgb(col){
 
-                    <div class="home__info">
-                        <div>
-                          <p> <span class="home__info-title">热销</span></p>
-                            <p><span class="home__info-title">山货</span> <a href="" class="button button--flex button--link home__info-button"> More <i class="ri-arrow-right-line"></i> </a> </p>
-                        </div>
+	var r = parseInt((.5+Math.sin(col)*.5)*16);
+	var g = parseInt((.5+Math.cos(col)*.5)*16);
+	var b = parseInt((.5-Math.sin(col)*.5)*16);
+	return "#"+r.toString(16)+g.toString(16)+b.toString(16);
+}
 
-                        <div class="home__info-overlay">
-                            <img src="assets/img/huasheng.jpg" alt="" class="home__info-img">
-                        </div>
-                    </div>
-                </div>
-            </section>
+function draw(){
 
-            <!--==================== ABOUT ====================-->
-            <section class="about section" id="about">
-                <div class="about__container container grid">
-                    <div class="about__data">
-                        <h2 class="section__title about__title">关于我们优质商品的 <br> 更多信息</h2>
-                        <p class="about__description">点击“立刻了解”，展开商品详情。所有的信息都将向您说明，我们值得信赖。
-                        </p>
-                        <a href="#" class="button">立即了解</a>
-                    </div>
+	ctx.clearRect(0,0,cx*2,cy*2);
 
-                    <div class="about__img">
-                        <div class="about__img-overlay">
-                            <img src="assets/img/shanhuo1.jpg" alt="" class="about__img-one">
-                        </div>
+	ctx.fillStyle="lightblue";
+	for(i=-100;i<100;i+=3){
+		for(j=-100;j<100;j+=4){
+			x=i;z=j;y=25;
+			point=rasterizePoint(x,y,z);
+			if(point.d!=-1){
+				size=250/(1+point.d);
+				d = Math.sqrt(x * x + z * z);
+				a = 0.75 - Math.pow(d / 100, 6) * 0.75;
+				if(a>0){
+					ctx.globalAlpha = a;
+					ctx.fillRect(point.x-size/2,point.y-size/2,size,size);
+				}
+			}
+		}
+	}
+	ctx.globalAlpha=1;
+	for(i=0;i<seeds.length;++i){
+		point=rasterizePoint(seeds[i].x,seeds[i].y,seeds[i].z);
+		if(point.d!=-1){
+			size=200/(1+point.d);
+			ctx.fillRect(point.x-size/2,point.y-size/2,size,size);
+		}
+	}
+	point1=new Object();
+	for(i=0;i<sparks.length;++i){
+		point=rasterizePoint(sparks[i].x,sparks[i].y,sparks[i].z);
+		if(point.d!=-1){
+			size=sparks[i].radius*200/(1+point.d);
+			if(sparks[i].alpha<0)sparks[i].alpha=0;
+			if(sparks[i].trail.length){
+				point1.x=point.x;
+				point1.y=point.y;
+				switch(sparks[i].img){
+					case sparkPics[0]:ctx.strokeStyle="#f84";break;
+					case sparkPics[1]:ctx.strokeStyle="#84f";break;
+					case sparkPics[2]:ctx.strokeStyle="#8ff";break;
+					case sparkPics[3]:ctx.strokeStyle="#fff";break;
+					case sparkPics[4]:ctx.strokeStyle="#4f8";break;
+					case sparkPics[5]:ctx.strokeStyle="#f44";break;
+					case sparkPics[6]:ctx.strokeStyle="#f84";break;
+					case sparkPics[7]:ctx.strokeStyle="#84f";break;
+					case sparkPics[8]:ctx.strokeStyle="#fff";break;
+					case sparkPics[9]:ctx.strokeStyle="#44f";break;
+				}
+				for(j=sparks[i].trail.length-1;j>=0;--j){
+					point2=rasterizePoint(sparks[i].trail[j].x,sparks[i].trail[j].y,sparks[i].trail[j].z);
+					if(point2.d!=-1){
+						ctx.globalAlpha=j/sparks[i].trail.length*sparks[i].alpha/2;
+						ctx.beginPath();
+						ctx.moveTo(point1.x,point1.y);
+						ctx.lineWidth=1+sparks[i].radius*10/(sparks[i].trail.length-j)/(1+point2.d);
+						ctx.lineTo(point2.x,point2.y);
+						ctx.stroke();
+						point1.x=point2.x;
+						point1.y=point2.y;
+					}
+				}
+			}
+			ctx.globalAlpha=sparks[i].alpha;
+			ctx.drawImage(sparks[i].img,point.x-size/2,point.y-size/2,size,size);
+		}
+	}
+}
 
-                        <div class="about__img-overlay">
-                            <img src="assets/img/shanhuo2.jpg" alt="" class="about__img-two">
-                        </div>
-                    </div>
-                </div>
-            </section>
-            
-            <!--==================== DISCOVER ====================-->
-            <section class="discover section" id="discover">
-                <h2 class="section__title">更专业的 <br> 农业社区</h2>
-                
-                <div class="discover__container container swiper-container">
-                    <div class="swiper-wrapper">
-                        <!--==================== DISCOVER 1 ====================-->
-                        <div class="discover__card swiper-slide">
-                            <img src="assets/img/nongyejixie.jpg" alt="" class="discover__img">
-                            <div class="discover__data">
-                                <h2 class="discover__title">农业机械</h2>
-                                
-                            </div>
-                        </div>
+function frame(){
 
-                        <!--==================== DISCOVER 2 ====================-->
-                        <div class="discover__card swiper-slide">
-                            <img src="assets/img/zuowuzhongzhi.jpg" alt="" class="discover__img">
-                            <div class="discover__data">
-                                <h2 class="discover__title">作物种植方法</h2>
-                                <span class="discover__description">对于每一品种提出专业建议</span>
-                            </div>
-                        </div>
+	if(frames>100000){
+		seedTimer=0;
+		frames=0;
+	}
+	frames++;
+	draw();
+	doLogic();
+	requestAnimationFrame(frame);
+}
 
-                      
+window.addEventListener("resize",()=>{
+	canvas.width=canvas.clientWidth;
+	canvas.height=canvas.clientHeight;
+	cx=canvas.width/2;
+	cy=canvas.height/2;
+});
 
-                        <!--==================== DISCOVER 3 ====================-->
-                        <div class="discover__card swiper-slide">
-                            <img src="assets/img/xinxingzuowu.jpg" alt="" class="discover__img">
-                            <div class="discover__data">
-                                <h2 class="discover__title">新型品种</h2>
-                                
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </section>
+initVars();
+frame();
+</script>
+<script src="js/index.js"></script>
 
-            <!--==================== EXPERIENCE ====================-->
-            <section class="experience section">
-                <h2 class="section__title">更丰富的经验<br> 更优质的服务</h2>
-
-                <div class="experience__container container grid">
-                    <div class="experience__content grid">
-                        <div class="experience__data">
-                            <h2 class="experience__number">20</h2>
-                            <span class="experience__description">家 <br>
-                            物流合作</span>
-                        </div>
-
-                        <div class="experience__data">
-                            <h2 class="experience__number">75</h2>
-                            <span class="experience__description">位<br> 专家在线</span>
-                        </div>
-
-                        <div class="experience__data">
-                            <h2 class="experience__number">650+</h2>
-                            <span class="experience__description">乡村<br> 覆盖</span>
-                        </div>
-                    </div>
-
-                    <div class="experience__img grid">
-                        <div class="experience__overlay">
-                            <img src="assets/img/wuliu.jpg" alt="" class="experience__img-one">
-                        </div>
-                        
-                        <div class="experience__overlay">
-                            <img src="assets/img/wuliu1.jpg" alt="" class="experience__img-two">
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!--==================== VIDEO ====================-->
-            <section class="video section">
-                <h2 class="section__title">云游乡村</h2>
-
-                <div class="video__container container">
-                    <p class="video__description">请更近地感受到乡村之美，我们的商品便是从那里来
-                    </p>
-
-                    <div class="video__content">
-                        <video id="video-file">
-                            <source src="assets/video/travel.mp4" type="video/mp4">
-                        </video>
-
-                        <button class="button button--flex video__button" id="video-button">
-                            <i class="ri-play-line video__button-icon" id="video-icon"></i>
-                        </button>
-                    </div>
-                </div>
-            </section>
-
-            <!--==================== PLACES ====================-->
-            <section class="place section" id="place">
-                <h2 class="section__title"><p>选择您感兴趣的</p><p>内容</p></h2>
-
-                <div class="place__container container grid">
-                    <!--==================== PLACES CARD 1 ====================-->
-                    <div class="place__card">
-                        <img src="assets/img/huiyuangou.jpg" alt="" class="place__img">
-                        
-                        <div class="place__content">
-                            <span class="place__rating">
-                                <i class="ri-star-line place__rating-icon"></i>
-                         
-                            </span>
-
-                            <div class="place__data">
-                                <h3 class="place__title">会员购&nbsp;</h3>
-                                <span class="place__subtitle">新鲜好物</span>
-                               
-                            </div>
-                        </div>
-
-                        <button class="button button--flex place__button">
-                            <i class="ri-arrow-right-line"></i>
-                        </button>
-                    </div>
-
-                    <!--==================== PLACES CARD 2 ====================-->
-                    <div class="place__card">
-                        <img src="assets/img/zhishikepu.jpg" alt="" class="place__img">
-                        
-                        <div class="place__content">
-                            <span class="place__rating">
-                                <i class="ri-star-line place__rating-icon"></i>
-                                
-                            </span>
-
-                            <div class="place__data">
-                                <h3 class="place__title">知识科普</h3>
-                                <span class="place__subtitle">技术兴农</span>
-                             
-                            </div>
-                        </div>
-
-                        <button class="button button--flex place__button">
-                            <i class="ri-arrow-right-line"></i>
-                        </button>
-                    </div>
-
-                    <!--==================== PLACES CARD 3 ====================-->
-                    <div class="place__card">
-                        <img src="assets/img/dongtaitieba.jpg" alt="" class="place__img">
-                        
-                        <div class="place__content">
-                            <span class="place__rating">
-                                <i class="ri-star-line place__rating-icon"></i>
-                      
-                            </span>
-
-                            <div class="place__data">
-                                <h3 class="place__title">动态贴吧</h3>
-                                <span class="place__subtitle">分享心得经验</span>
-                      
-                            </div>
-                        </div>
-
-                        <button class="button button--flex place__button">
-                            <i class="ri-arrow-right-line"></i>
-                        </button>
-                    </div>
-
-                    <!--==================== PLACES CARD 4 ====================-->
-                    <div class="place__card">
-                        <img src="assets/img/nongyezhengce.jpg" alt="" class="place__img">
-                        
-                        <div class="place__content">
-                            <span class="place__rating">
-                                <i class="ri-star-line place__rating-icon"></i>
-                              
-                            </span>
-
-                            <div class="place__data">
-                                <h3 class="place__title">农业政策&nbsp;</h3>
-                                <span class="place__subtitle">响应政府号召</span>
-                            
-                            </div>
-                        </div>
-
-                        <button class="button button--flex place__button">
-                            <i class="ri-arrow-right-line"></i>
-                        </button>
-                    </div>
-
-                    <!--==================== PLACES CARD 5 ====================-->
-                    <div class="place__card">
-                        <img src="assets/img/yunyouxiangcun.jpg" alt="" class="place__img">
-                        
-                        <div class="place__content">
-                            <span class="place__rating">
-                                <i class="ri-star-line place__rating-icon"></i>
-                              
-                            </span>
-
-                            <div class="place__data">
-                                <h3 class="place__title">云游乡村</h3>
-                                <span class="place__subtitle">亲近自然</span>
-                               
-                            </div>
-                        </div>
-
-                        <button class="button button--flex place__button">
-                            <i class="ri-arrow-right-line"></i>
-                        </button>
-                    </div>
-                </div>
-            </section>
-
-            <!--==================== SUBSCRIBE ====================-->
-            <section class="subscribe section">
-                <div class="subscribe__bg">
-                    <div class="subscribe__container container">
-                        <h2 class="section__title subscribe__title">关注我们的频道</h2>
-                        <p>&nbsp;</p>
-<p class="subscribe__description">关注我们，获得20%优惠！！！&nbsp;
-          </p>
-    
-                        <form action="" class="subscribe__form">
-                            <input type="text" placeholder="Enter email" class="subscribe__input">
-    
-                            <button class="button">
-                                Subscribe
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            </section>
-            
-            <!--==================== SPONSORS ====================-->
-            <section class="sponsor section">
-                <div class="sponsor__container container grid">
-                    <div class="sponsor__content">
-                        <img src="assets/img/sponsors1.png" alt="" class="sponsor__img">
-                    </div>
-                    <div class="sponsor__content">
-                        <img src="assets/img/sponsors2.png" alt="" class="sponsor__img">
-                    </div>
-                    <div class="sponsor__content">
-                        <img src="assets/img/sponsors3.png" alt="" class="sponsor__img">
-                    </div>
-                    <div class="sponsor__content">
-                        <img src="assets/img/sponsors4.png" alt="" class="sponsor__img">
-                    </div>
-                    <div class="sponsor__content">
-                        <img src="assets/img/sponsors5.png" alt="" class="sponsor__img">
-                    </div>
-                </div>
-            </section>
-        </main>
-
-        <!--==================== FOOTER ====================-->
-        <footer class="footer section">
-            <div class="footer__container container grid">
-                <div class="footer__content grid">
-                    <div class="footer__data">
-                        <h3 class="footer__title">田园徽州</h3>
-                        <p class="footer__description">&nbsp;
-                        </p>
-                        <div>
-                            <a href="https://www.facebook.com/" target="_blank" class="footer__social">
-                                <i class="ri-facebook-box-fill"></i>
-                            </a>
-                            <a href="https://twitter.com/" target="_blank" class="footer__social">
-                                <i class="ri-twitter-fill"></i>
-                            </a>
-                            <a href="https://www.instagram.com/" target="_blank" class="footer__social">
-                                <i class="ri-instagram-fill"></i>
-                            </a>
-                            <a href="https://www.youtube.com/" target="_blank" class="footer__social">
-                                <i class="ri-youtube-fill"></i>
-                            </a>
-                        </div>
-                    </div>
-    
-                    <div class="footer__data">
-                        <h3 class="footer__subtitle">关于</h3>
-                        <ul>
-                            <li class="footer__item">
-                                <a href="" class="footer__link">关于我们</a>
-                            </li>
-                            <li class="footer__item">
-                                <a href="" class="footer__link">产品特点</a>
-                            </li>
-                            <li class="footer__item">
-                                <a href="" class="footer__link">最新动态</a>
-                            </li>
-                        </ul>
-                    </div>
-    
-                    <div class="footer__data">
-                        <h3 class="footer__subtitle">组队</h3>
-                        <ul>
-                            <li class="footer__item">
-                                <a href="" class="footer__link">团队成员</a>
-                            </li>
-                            <li class="footer__item">
-                                <a href="" class="footer__link">未来计划&nbsp;</a>
-                            </li>
-                            <li class="footer__item">
-                                <a href="" class="footer__link">加入我们</a>
-                            </li>
-                        </ul>
-                    </div>
-    
-                    <div class="footer__data">
-                        <h3 class="footer__subtitle">支持</h3>
-                        <ul>
-                            <li class="footer__item">
-                                <a href="" class="footer__link">问题&解答</a>
-                            </li>
-                            <li class="footer__item">
-                                <a href="" class="footer__link">论坛&nbsp;</a>
-                            </li>
-                            <li class="footer__item">
-                                <a href="" class="footer__link">联系我们</a>
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-
-                <div class="footer__rights">
-                    <p class="footer__copy">本网站仅用于学习，不可用于商业用途</p>
-                    <div class="footer__terms">
-                        <a href="#" class="footer__terms-link">田园徽州小组</a>
-                        <a href="#" class="footer__terms-link">共同制作</a>
-                    </div>
-                </div>
-            </div>
-        </footer>
-
-         <!--========== SCROLL UP ==========-->
-        <a href="#" class="scrollup" id="scroll-up">
-            <i class="ri-arrow-up-line scrollup__icon"></i>
-        </a>
-
-        <!--=============== SCROLL REVEAL===============-->
-        <script src="assets/js/scrollreveal.min.js"></script>
-        
-        <!--=============== SWIPER JS ===============-->
-        <script src="assets/js/swiper-bundle.min.js"></script>
-
-        <!--=============== MAIN JS ===============-->
-        <script src="assets/js/main.js"></script>
-    </body>
+</body>
 </html>
